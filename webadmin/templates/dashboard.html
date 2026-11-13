@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <title>Shop Rewards — панель</title>
+  <style>
+    :root { --blue: #2b82d9; --line: #e8edf2; --muted: #6b7a89; }
+    body { margin: 0; font: 14px/1.45 system-ui, sans-serif; background: #f4f7fa; color: #18222d; }
+    header { display: flex; align-items: center; gap: 12px; padding: 14px 28px; background: #17212b; color: #fff; }
+    header h1 { margin: 0; font-size: 18px; }
+    .msg { margin: 16px 28px 0; padding: 10px 14px; border-radius: 10px; background: #e6f4ea; color: #1e6b37; }
+    main { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; padding: 18px 28px 28px; }
+    .stats { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+    .stat, section { background: #fff; border: 1px solid var(--line); border-radius: 12px; }
+    .stat { padding: 12px 16px; }
+    .stat b { display: block; font-size: 22px; }
+    .stat span { color: var(--muted); font-size: 13px; }
+    section { padding: 16px 18px; }
+    h2 { margin: 0 0 12px; font-size: 15px; }
+    table { width: 100%; border-collapse: collapse; }
+    td, th { padding: 7px 4px; border-bottom: 1px solid var(--line); text-align: left; }
+    th { color: var(--muted); font-size: 12px; font-weight: 500; }
+    .plus { color: #1e8e3e; font-weight: 600; }
+    .minus { color: #c5221f; font-weight: 600; }
+    .tier { font-size: 12px; padding: 1px 8px; border-radius: 99px; background: #eef3f8; }
+    form { display: grid; gap: 8px; }
+    form .row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; }
+    input, textarea { padding: 9px 11px; border: 1px solid #d5dde5; border-radius: 8px; font: inherit; }
+    button { border: 0; background: var(--blue); color: #fff; padding: 9px 16px; border-radius: 8px; cursor: pointer; font: inherit; }
+    label.chk { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+    .side { display: grid; gap: 18px; align-content: start; }
+    .promo { padding: 8px 0; border-bottom: 1px solid var(--line); }
+    .promo small { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header><h1>Shop Rewards</h1><span>програма лояльності</span></header>
+  {% if msg %}<div class="msg">{{ msg }}</div>{% endif %}
+  <main>
+    <div class="stats">
+      <div class="stat"><b>{{ customers }}</b><span>учасників</span></div>
+      <div class="stat"><b>+{{ new_customers }}</b><span>нових за 30 днів</span></div>
+      <div class="stat"><b>{{ "{:,}".format(issued).replace(",", " ") }}</b><span>балів нараховано (30 дн.)</span></div>
+      <div class="stat"><b>{{ "{:,}".format(spent).replace(",", " ") }}</b><span>балів обміняно (30 дн.)</span></div>
+      <div class="stat"><b>{{ coupons_used }}</b><span>купонів погашено</span></div>
+    </div>
+
+    <section>
+      <h2>Останні операції</h2>
+      <table>
+        <tr><th>Дата</th><th>Клієнт</th><th>Операція</th><th>Бали</th></tr>
+        {% for tx, c in recent %}
+        <tr>
+          <td>{{ tx.created_at.strftime("%d.%m %H:%M") }}</td>
+          <td>{{ c.name }} <small style="color:#6b7a89">{{ c.card_code }}</small></td>
+          <td>{{ tx.description }}</td>
+          <td class="{{ 'plus' if tx.points > 0 else 'minus' }}">{{ "%+d" % tx.points }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+
+      <h2 style="margin-top:20px">Найактивніші клієнти</h2>
+      <table>
+        <tr><th>Клієнт</th><th>Рівень</th><th>Покупок на</th><th>Баланс</th></tr>
+        {% for c in top %}
+        {% set t = tier_for(c.total_spent) %}
+        <tr>
+          <td>{{ c.name }}</td>
+          <td><span class="tier">{{ t.emoji }} {{ t.name }}</span></td>
+          <td>{{ "{:,}".format(c.total_spent).replace(",", " ") }} грн</td>
+          <td>{{ c.balance }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </section>
+
+    <div class="side">
+      <section>
+        <h2>Каса: нарахувати бали</h2>
+        <form method="post" action="/purchase">
+          <div class="row">
+            <input name="card_code" placeholder="Код картки" required>
+            <input name="amount" type="number" min="1" placeholder="Сума, грн" required>
+            <button>Нарахувати</button>
+          </div>
+        </form>
+      </section>
+
+      <section>
+        <h2>Нова акція</h2>
+        <form method="post" action="/promos">
+          <input name="title" placeholder="Заголовок" required>
+          <textarea name="text" rows="3" placeholder="Опис для клієнтів" required></textarea>
+          <input name="valid_until" type="date">
+          <label class="chk"><input type="checkbox" name="broadcast" value="true" checked> Розіслати підписаним у Telegram</label>
+          <button>Створити</button>
+        </form>
+        {% for p in promos %}
+        <div class="promo"><b>{{ p.title }}</b><br><small>{{ p.text }}{% if p.valid_until %} · до {{ p.valid_until.strftime("%d.%m") }}{% endif %}</small></div>
+        {% endfor %}
+      </section>
+    </div>
+  </main>
+</body>
+</html>

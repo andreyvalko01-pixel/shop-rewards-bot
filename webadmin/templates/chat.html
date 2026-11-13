@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shop Rewards — емулятор</title>
+  <style>
+    body { margin: 0; font: 15px/1.4 system-ui, -apple-system, sans-serif; background: #0e1621; display: flex; justify-content: center; color: #f5f5f5; }
+    .phone { width: 420px; height: 100vh; display: flex; flex-direction: column; background: #0e1621; }
+    .top { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #17212b; }
+    .avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg,#5eb5f7,#2b82d9); color: #fff; display: grid; place-items: center; font-weight: 600; }
+    .top small { display: block; color: #8a9aa6; font-size: 13px; }
+    .log { flex: 1; overflow-y: auto; padding: 12px 10px; }
+    .msg { max-width: 82%; margin: 0 0 6px; padding: 7px 10px 6px; border-radius: 12px; white-space: pre-wrap; box-shadow: 0 1px 1px rgba(0,0,0,.08); position: relative; }
+    .bot { background: #182533; border-bottom-left-radius: 4px; }
+    .user { margin-left: auto; background: #2b5278; border-bottom-right-radius: 4px; }
+    .msg time { float: right; margin: 6px 0 0 10px; font-size: 11px; color: #6d8394; }
+    .msg code { background: rgba(255,255,255,.08); padding: 1px 5px; border-radius: 4px; }
+    .ikb { max-width: 82%; margin: -2px 0 8px; }
+    .ikb div { display: flex; gap: 4px; margin-top: 4px; }
+    .ikb button { flex: 1; padding: 8px 6px; border: 0; border-radius: 8px; background: #1e2c3a; color: #e4ecf2; font: 500 13px system-ui; cursor: pointer; }
+    .ikb button:hover { background: #263a4d; }
+    .rkb { padding: 6px; background: #17212b; }
+    .rkb div { display: flex; gap: 6px; margin-bottom: 6px; }
+    .rkb button { flex: 1; padding: 10px; border: 0; border-radius: 8px; background: #2b5278; color: #fff; font: 14px system-ui; cursor: pointer; }
+    form { display: flex; gap: 8px; padding: 8px 10px; background: #17212b; }
+    form input { flex: 1; padding: 10px 12px; border: 0; outline: 0; font: inherit; background: transparent; color: #fff; }
+    form button { border: 0; background: none; color: #3390ec; font-size: 22px; cursor: pointer; }
+    .toast { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.75); color: #fff; padding: 8px 14px; border-radius: 10px; font-size: 13px; }
+    .hint { text-align: center; margin: 8px auto 12px; font-size: 12px; color: #fff; background: rgba(0,0,0,.25); border-radius: 10px; padding: 3px 10px; width: max-content; }
+  </style>
+</head>
+<body>
+  <div class="phone">
+    <div class="top"><div class="avatar">SR</div><div><b>Shop Rewards</b><small>бот</small></div></div>
+    <div class="log" id="log"><div class="hint">Емулятор: відповіді генерують справжні обробники бота</div></div>
+    <div class="rkb" id="rkb" hidden></div>
+    <form id="form"><input id="input" placeholder="Повідомлення" autocomplete="off"><button>➤</button></form>
+  </div>
+  <script>
+    const log = document.getElementById('log');
+    const rkb = document.getElementById('rkb');
+
+    async function send(body) {
+      const res = await fetch('/dev/chat/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      render(await res.json());
+    }
+
+    function render(state) {
+      log.querySelectorAll('.msg, .ikb').forEach((el) => el.remove());
+      for (const m of state.messages) {
+        const el = document.createElement('div');
+        el.className = `msg ${m.from}`;
+        el.innerHTML = m.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/&lt;(\/?)(b|i|code)>/g, '<$1$2>');
+        const t = document.createElement('time');
+        t.textContent = m.time;
+        el.appendChild(t);
+        log.appendChild(el);
+        if (m.buttons) {
+          const kb = document.createElement('div');
+          kb.className = 'ikb';
+          for (const row of m.buttons) {
+            const r = document.createElement('div');
+            for (const b of row) {
+              const btn = document.createElement('button');
+              btn.textContent = b.text;
+              btn.onclick = () => b.url ? window.open(b.url) : send({ message_id: m.id, data: b.data });
+              r.appendChild(btn);
+            }
+            kb.appendChild(r);
+          }
+          log.appendChild(kb);
+        }
+      }
+      log.scrollTop = log.scrollHeight;
+
+      rkb.innerHTML = '';
+      rkb.hidden = !state.keyboard;
+      for (const row of state.keyboard || []) {
+        const r = document.createElement('div');
+        for (const b of row) {
+          const btn = document.createElement('button');
+          btn.textContent = b.text;
+          btn.onclick = () => send(b.contact ? { contact: true } : { text: b.text });
+          r.appendChild(btn);
+        }
+        rkb.appendChild(r);
+      }
+
+      if (state.toast) {
+        const t = document.createElement('div');
+        t.className = 'toast';
+        t.textContent = state.toast;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 2500);
+      }
+    }
+
+    document.getElementById('form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const input = document.getElementById('input');
+      if (input.value.trim()) send({ text: input.value.trim() });
+      input.value = '';
+    });
+
+    fetch('/dev/chat/state').then((r) => r.json()).then((s) => s.messages.length ? render(s) : send({ text: '/start' }));
+    window.emu = { send };
+  </script>
+</body>
+</html>
